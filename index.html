@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>พิมพ์ด้วยเสียง</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f1f4f2;
+    --card: #ffffff;
+    --ink: #14201c;
+    --muted: #5b6862;
+    --line: #d3dad6;
+    --accent: #0f6b5c;
+    --rec: #c8372d;
+    --focus: #0b4fd6;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.65;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 28px 18px 64px; }
+  h1 { font-size: 28px; line-height: 1.25; margin: 0 0 4px; font-weight: 700; }
+  .sub { margin: 0 0 22px; color: var(--muted); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  details.settings {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 26px;
+  }
+  details.settings summary { cursor: pointer; font-weight: 500; }
+  .field { margin-top: 12px; }
+  .field label { display: block; font-size: 15px; color: var(--muted); margin-bottom: 4px; }
+  input[type=password], textarea {
+    width: 100%; font: inherit; color: inherit; background: #fff;
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  }
+  .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 16px; }
+  .check input { margin-top: 6px; width: 18px; height: 18px; }
+  .check small { display: block; color: var(--muted); }
+
+  .recorder { text-align: center; padding: 8px 0 26px; }
+  #recBtn {
+    width: 128px; height: 128px; border-radius: 50%;
+    border: 0; background: var(--accent); color: #fff; cursor: pointer;
+    font: 700 18px/1.2 inherit; font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center; text-align: center;
+    box-shadow: 0 0 0 8px rgba(15,107,92,.14);
+  }
+  #recBtn[data-state="recording"] {
+    background: var(--rec); box-shadow: 0 0 0 10px rgba(200,55,45,.2);
+    animation: ring 1.4s ease-in-out infinite;
+  }
+  #recBtn[disabled] { background: #7f8f89; box-shadow: none; cursor: progress; }
+  @keyframes ring { 50% { box-shadow: 0 0 0 18px rgba(200,55,45,.06); } }
+  @media (prefers-reduced-motion: reduce) { #recBtn[data-state="recording"] { animation: none; } }
+  #timer { margin-top: 14px; font-size: 22px; font-variant-numeric: tabular-nums; min-height: 34px; }
+  #status { min-height: 28px; color: var(--muted); }
+  #status.error { color: var(--rec); font-weight: 500; }
+
+  h2 { font-size: 19px; margin: 0 0 8px; }
+  textarea { min-height: 150px; resize: vertical; line-height: 1.7; }
+  .row { display: flex; gap: 10px; margin: 10px 0 0; flex-wrap: wrap; }
+  button.sec {
+    font: inherit; font-size: 16px; padding: 8px 16px; border-radius: 8px; cursor: pointer;
+    background: var(--card); color: var(--ink); border: 1px solid var(--line);
+  }
+  button.sec:hover { border-color: var(--accent); }
+  details.raw { margin-top: 12px; font-size: 14px; color: var(--muted); }
+  details.raw pre { white-space: pre-wrap; word-break: break-all; background: #fff; border: 1px solid var(--line); padding: 10px; border-radius: 8px; }
+
+  .history { margin-top: 36px; }
+  .item { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .item time { display: block; font-size: 14px; color: var(--muted); }
+  .item p { margin: 4px 0 8px; white-space: pre-wrap; }
+  .item .row { margin: 0; }
+  .item button.sec { font-size: 14px; padding: 4px 12px; }
+  .empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>พิมพ์ด้วยเสียง</h1>
+  <p class="sub">กดปุ่มเพื่อเริ่มอัด พูด แล้วกดอีกครั้งเพื่อหยุด ข้อความจะขึ้นด้านล่าง</p>
+
+  <details class="settings" id="settings">
+    <summary>ตั้งค่า</summary>
+    <div class="field">
+      <label for="pass">รหัสผ่านของแอป</label>
+      <input type="password" id="pass" autocomplete="current-password">
+    </div>
+    <label class="check">
+      <input type="checkbox" id="pro">
+      <span>ใช้โหมด Pro<small>แม่นกว่าแต่คิดเครดิตมากกว่า และช้ากว่าเล็กน้อย</small></span>
+    </label>
+  </details>
+
+  <section class="recorder" aria-label="อัดเสียง">
+    <button id="recBtn" type="button" data-state="idle">เริ่มอัด</button>
+    <div id="timer" aria-hidden="true"></div>
+    <div id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section aria-label="ผลลัพธ์">
+    <h2>ข้อความล่าสุด</h2>
+    <textarea id="result" placeholder="ข้อความที่ถอดได้จะขึ้นที่นี่ แก้ไขได้ก่อนคัดลอก"></textarea>
+    <div class="row">
+      <button class="sec" id="copyBtn" type="button">คัดลอก</button>
+      <button class="sec" id="clearBtn" type="button">ล้าง</button>
+    </div>
+    <details class="raw" id="rawBox" hidden>
+      <summary>ดูข้อมูลดิบจาก iApp</summary>
+      <pre id="rawOut"></pre>
+    </details>
+  </section>
+
+  <section class="history" aria-label="ประวัติ">
+    <h2>ประวัติ</h2>
+    <div id="history"><p class="empty">กำลังโหลด...</p></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var MAX_SEC = 110; // ต้องไม่เกิน ~2 นาที เพราะ Vercel รับไฟล์ได้ไม่เกิน ~4.5 MB
+  var $ = function (id) { return document.getElementById(id); };
+  var recBtn = $('recBtn'), timerEl = $('timer'), statusEl = $('status');
+  var resultEl = $('result'), passEl = $('pass'), proEl = $('pro');
+
+  var recorder = null, chunks = [], stream = null, tick = null, t0 = 0;
+
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k) || ''; localStorage.setItem(k, v); } catch (e) { return ''; } }
+  passEl.value = store('passcode');
+  proEl.checked = store('pro') === '1';
+  passEl.addEventListener('input', function () { store('passcode', passEl.value); });
+  proEl.addEventListener('change', function () { store('pro', proEl.checked ? '1' : '0'); });
+
+  function setStatus(msg, isError) {
+    statusEl.textContent = msg || '';
+    statusEl.className = isError ? 'error' : '';
+  }
+  function fmt(sec) {
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function pickMime() {
+    var list = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    for (var i = 0; i < list.length; i++) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(list[i])) return list[i];
+    }
+    return '';
+  }
+
+  // แปลงเสียงที่อัดได้เป็น WAV 16 kHz โมโน 16-bit (รูปแบบที่ iApp รับได้แน่นอน)
+  async function toWav16k(blob) {
+    var buf = await blob.arrayBuffer();
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    var ctx = new Ctx();
+    var decoded = await ctx.decodeAudioData(buf);
+    ctx.close();
+    var length = Math.max(1, Math.ceil(decoded.duration * 16000));
+    var off = new OfflineAudioContext(1, length, 16000);
+    var src = off.createBufferSource();
+    src.buffer = decoded;
+    src.connect(off.destination);
+    src.start();
+    var rendered = await off.startRendering();
+    return encodeWav(rendered.getChannelData(0), 16000);
+  }
+  function encodeWav(samples, rate) {
+    var buffer = new ArrayBuffer(44 + samples.length * 2);
+    var v = new DataView(buffer);
+    function str(o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+    str(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); str(8, 'WAVE');
+    str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    str(36, 'data'); v.setUint32(40, samples.length * 2, true);
+    for (var i = 0, o = 44; i < samples.length; i++, o += 2) {
+      var s = Math.max(-1, Math.min(1, samples[i]));
+      v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'x-passcode': passEl.value }, opts.headers || {});
+    var res = await fetch(path, opts);
+    var data = null;
+    try { data = await res.json(); } catch (e) { /* ไม่ใช่ JSON */ }
+    if (!res.ok) {
+      var msg = (data && data.error) || (res.status === 413 ? 'ไฟล์เสียงใหญ่เกินไป อัดให้สั้นลง' : 'เกิดข้อผิดพลาด (' + res.status + ')');
+      var err = new Error(msg); err.data = data; throw err;
+    }
+    return data;
+  }
+
+  async function startRecording() {
+    if (!passEl.value) {
+      $('settings').open = true; passEl.focus();
+      setStatus('ใส่รหัสผ่านของแอปในช่องตั้งค่าก่อน', true);
+      return;
+    }
+    if (!window.MediaRecorder || !navigator.mediaDevices) {
+      setStatus('เบราว์เซอร์นี้อัดเสียงไม่ได้ ลองใช้ Chrome หรือ Safari เวอร์ชันใหม่', true);
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      setStatus('เปิดไมโครโฟนไม่ได้ ตรวจสอบว่าอนุญาตไมค์ให้เว็บนี้แล้ว', true);
+      return;
+    }
+    var mime = pickMime();
+    recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    chunks = [];
+    recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = onStopped;
+    recorder.start();
+    t0 = Date.now();
+    recBtn.dataset.state = 'recording';
+    recBtn.textContent = 'หยุด';
+    setStatus('กำลังอัดเสียง...');
+    timerEl.textContent = '00:00';
+    tick = setInterval(function () {
+      var sec = Math.floor((Date.now() - t0) / 1000);
+      timerEl.textContent = fmt(sec);
+      if (sec >= MAX_SEC) stopRecording();
+    }, 250);
+  }
+
+  function stopRecording() {
+    if (recorder && recorder.state === 'recording') recorder.stop();
+  }
+
+  async function onStopped() {
+    clearInterval(tick);
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+    var sec = Math.round((Date.now() - t0) / 1000);
+    recBtn.dataset.state = 'busy';
+    recBtn.disabled = true;
+    recBtn.textContent = 'รอสักครู่';
+    setStatus('กำลังถอดเสียง...');
+    try {
+      var blob = new Blob(chunks, { type: (recorder && recorder.mimeType) || 'audio/webm' });
+      var wav = await toWav16k(blob);
+      var data = await api('/api/transcribe' + (proEl.checked ? '?pro=1' : ''), {
+        method: 'POST',
+        headers: { 'Content-Type': 'audio/wav', 'x-duration': String(sec) },
+        body: wav
+      });
+      showRaw(data.raw);
+      if (!data.text) {
+        setStatus('ไม่พบเสียงพูด ลองพูดให้ดังและใกล้ไมค์ขึ้น', true);
+      } else {
+        resultEl.value = data.text;
+        setStatus(data.saved ? 'เสร็จแล้ว และบันทึกประวัติแล้ว' : 'เสร็จแล้ว');
+        loadHistory();
+      }
+    } catch (e) {
+      if (e.data && e.data.detail) showRaw(e.data.detail);
+      setStatus(e.message || 'เกิดข้อผิดพลาด', true);
+    } finally {
+      recBtn.disabled = false;
+      recBtn.dataset.state = 'idle';
+      recBtn.textContent = 'เริ่มอัด';
+      timerEl.textContent = '';
+    }
+  }
+
+  function showRaw(raw) {
+    $('rawBox').hidden = false;
+    $('rawOut').textContent = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+  }
+
+  recBtn.addEventListener('click', function () {
+    if (recBtn.dataset.state === 'recording') stopRecording();
+    else if (recBtn.dataset.state === 'idle') startRecording();
+  });
+
+  function copyText(text, btn) {
+    var done = function () { var o = btn.textContent; btn.textContent = 'คัดลอกแล้ว'; setTimeout(function () { btn.textContent = o; }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { setStatus('คัดลอกไม่สำเร็จ ลองเลือกข้อความแล้วคัดลอกเอง', true); });
+    }
+  }
+  $('copyBtn').addEventListener('click', function () { if (resultEl.value) copyText(resultEl.value, $('copyBtn')); });
+  $('clearBtn').addEventListener('click', function () { resultEl.value = ''; setStatus(''); });
+
+  async function loadHistory() {
+    var box = $('history');
+    if (!passEl.value) { box.innerHTML = '<p class="empty">ใส่รหัสผ่านเพื่อดูประวัติ</p>'; return; }
+    try {
+      var data = await api('/api/history');
+      if (!data.configured) { box.innerHTML = '<p class="empty">ยังไม่ได้เชื่อม Supabase จึงยังไม่มีประวัติ</p>'; return; }
+      if (!data.items.length) { box.innerHTML = '<p class="empty">ยังไม่มีประวัติ</p>'; return; }
+      box.innerHTML = '';
+      data.items.forEach(function (it) {
+        var d = document.createElement('div'); d.className = 'item';
+        var t = document.createElement('time');
+        t.textContent = new Date(it.created_at).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+        var p = document.createElement('p'); p.textContent = it.text;
+        var row = document.createElement('div'); row.className = 'row';
+        var c = document.createElement('button'); c.className = 'sec'; c.type = 'button'; c.textContent = 'คัดลอก';
+        c.addEventListener('click', function () { copyText(it.text, c); });
+        var x = document.createElement('button'); x.className = 'sec'; x.type = 'button'; x.textContent = 'ลบ';
+        x.addEventListener('click', async function () {
+          if (!confirm('ลบข้อความนี้?')) return;
+          try { await api('/api/history?id=' + it.id, { method: 'DELETE' }); loadHistory(); }
+          catch (e) { setStatus(e.message, true); }
+        });
+        row.appendChild(c); row.appendChild(x);
+        d.appendChild(t); d.appendChild(p); d.appendChild(row);
+        box.appendChild(d);
+      });
+    } catch (e) {
+      box.innerHTML = '';
+      var p = document.createElement('p'); p.className = 'empty'; p.textContent = e.message; box.appendChild(p);
+    }
+  }
+  passEl.addEventListener('change', loadHistory);
+  loadHistory();
+})();
+</script>
+</body>
+</html>
